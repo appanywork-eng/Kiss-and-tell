@@ -11,26 +11,24 @@ from app.database import get_db
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 SECRET_KEY = "kiss-and-tell-secret"
 ALGORITHM = "HS256"
 
 
-class UserCreate(BaseModel):
-    email: str
-    password: str
-
-
-class UserLogin(BaseModel):
+class AuthModel(BaseModel):
     email: str
     password: str
 
 
 def hash_password(password: str):
-    return pwd_context.hash(password[:72])
+    password = password[:72]
+    return pwd_context.hash(password)
 
 
 def verify_password(plain, hashed):
-    return pwd_context.verify(plain[:72], hashed)
+    plain = plain[:72]
+    return pwd_context.verify(plain, hashed)
 
 
 def create_token(data: dict):
@@ -40,15 +38,18 @@ def create_token(data: dict):
 
 
 @router.post("/signup")
-def signup(payload: UserCreate, db: Session = Depends(get_db)):
-    email = payload.email
-    password = payload.password
+def signup(data: AuthModel, db: Session = Depends(get_db)):
+    email = data.email
+    password = data.password
 
     existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    new_user = User(email=email, password=hash_password(password))
+    new_user = User(
+        email=email,
+        password=hash_password(password)
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -58,15 +59,12 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(payload: UserLogin, db: Session = Depends(get_db)):
-    email = payload.email
-    password = payload.password
+def login(data: AuthModel, db: Session = Depends(get_db)):
+    email = data.email
+    password = data.password
 
     user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not verify_password(password, user.password):
+    if not user or not verify_password(password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_token({"user_id": user.id})
