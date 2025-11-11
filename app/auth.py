@@ -22,9 +22,9 @@ class AuthModel(BaseModel):
 
 
 def hash_password(password: str):
+    # bcrypt only supports 72 bytes → truncate
     password = password[:72]
     return pwd_context.hash(password)
-
 
 def verify_password(plain, hashed):
     plain = plain[:72]
