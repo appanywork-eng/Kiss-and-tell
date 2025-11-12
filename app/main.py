@@ -1,14 +1,15 @@
 from fastapi import FastAPI
-from app.auth import router as auth_router
-from app.confession import router as confession_router
-from app.database import Base, engine
+from .database import Base, engine
+import app.models  # ensure models are registered before create_all
 
-# ✅ Create DB tables
+# Create tables at startup
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+from .auth import router as auth_router
+from .confession import router as confession_router
 
-# ✅ Add routers
+app = FastAPI(title="Kiss & Tell API")
+
 app.include_router(auth_router)
 app.include_router(confession_router)
 
