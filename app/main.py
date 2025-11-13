@@ -1,6 +1,6 @@
-from fastapi import FastAPI
-from .database import Base, engine
-import app.models  # Register models
+from fastapi import FastAPI, Depends
+from .database import Base, engine, get_db
+import app.models
 
 # Routers
 from .auth import router as auth_router
@@ -11,16 +11,18 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Kiss & Tell API")
 
-# Include Routers (VERY IMPORTANT)
+# Include Routers
 app.include_router(auth_router)
 app.include_router(confession_router)
 
+
+# HOME ROUTE
 @app.get("/")
 def home():
-    return {"status": "OK", "message": "Backend running successfully"}
-from fastapi import Depends
-from app.database import get_db
+    return {"status": "OK", "message": "Backend Running"}
 
+
+# TEST DATABASE ROUTE
 @app.get("/test-db")
 def test_db(db=Depends(get_db)):
     try:
