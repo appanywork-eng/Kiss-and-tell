@@ -18,3 +18,13 @@ app.include_router(confession_router)
 @app.get("/")
 def home():
     return {"status": "OK", "message": "Backend running successfully"}
+from fastapi import Depends
+from app.database import get_db
+
+@app.get("/test-db")
+def test_db(db=Depends(get_db)):
+    try:
+        db.execute("SELECT 1")
+        return {"db": "OK"}
+    except Exception as e:
+        return {"db": "FAIL", "error": str(e)}
