@@ -4,6 +4,7 @@ from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr
+import traceback
 
 from app.models import User
 from app.database import get_db
@@ -24,7 +25,7 @@ class AuthModel(BaseModel):
 
 # Hash password
 def hash_password(password: str):
-    password = password[:72]        # bcrypt max length
+    password = password[:72]
     return pwd_context.hash(password)
 
 
@@ -34,58 +35,79 @@ def verify_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
 
 
-# JWT
+# Create JWT
 def create_token(data: dict):
     to_encode = data.copy()
     to_encode["exp"] = datetime.utcnow() + timedelta(days=3)
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-# ✅ UPDATED SIGNUP
+# SIGNUP
 @router.post("/signup")
 def signup(data: AuthModel, db: Session = Depends(get_db)):
     try:
-        print("SIGNUP INPUT:", data.dict())
+        print("===== SIGNUP CALLED =====")
+        print("INPUT DATA:", data.dict())
 
         email = data.email
         password = data.password
 
+        # 1. Check if email exists
         existing = db.query(User).filter(User.email == email).first()
         if existing:
+            print("ERROR: Email already exists")
             raise HTTPException(status_code=400, detail="Email already registered")
 
+        # 2. Create user
         new_user = User(
             email=email,
             password=hash_password(password)
         )
+
         db.add(new_user)
+        db.flush()       # <-- IMPORTANT on Render
         db.commit()
         db.refresh(new_user)
 
+        print("NEW USER CREATED:", new_user.id)
+
         token = create_token({"user_id": new_user.id})
-        return {"token": token}
+        return {"status": "success", "token": token}
 
     except Exception as e:
         print("SIGNUP ERROR:", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Signup failed: " + str(e))
 
 
-# ✅ UPDATED LOGIN
+# LOGIN
 @router.post("/login")
 def login(data: AuthModel, db: Session = Depends(get_db)):
     try:
-        print("LOGIN INPUT:", data.dict())
+        print("===== LOGIN CALLED =====")
+        print("INPUT DATA:", data.dict())
 
         email = data.email
         password = data.password
 
+        # 1. Get user
         user = db.query(User).filter(User.email == email).first()
-        if not user or not verify_password(password, user.password):
+
+        if not user:
+            print("ERROR: User not found")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # 2. Verify password
+        if not verify_password(password, user.password):
+            print("ERROR: Wrong password")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         token = create_token({"user_id": user.id})
-        return {"token": token}
+        print("LOGIN SUCCESS:", user.id)
+
+        return {"status": "success", "token": token}
 
     except Exception as e:
         print("LOGIN ERROR:", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Login failed: " + str(e))
